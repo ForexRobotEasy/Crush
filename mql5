@@ -1,0 +1,97 @@
+
+// Program: Crush
+// Developer: Forex Robot Easy Team
+// Site: forexroboteasy.com
+// Description: Forex trading robot based on the Product Crush strategy
+
+// Include necessary libraries
+#include <Trade/Trade.mqh>
+#include <Technical/Indicators.mqh>
+
+// Define global variables
+input double riskPercentage = 2.5; // Percentage of account balance to risk per trade
+input double stopLossPercentage = 0.5; // Percentage of trade entry price for stop loss
+input double takeProfitPercentage = 1.0; // Percentage of trade entry price for take profit
+input double maxSpread = 1.0; // Maximum allowable spread
+
+// Initialize trade object
+CTrade trade;
+
+// Initialize technical indicators
+CCI cci;
+MovingAverage ma;
+
+// Define trade execution function
+void ExecuteTrade(double entryPrice, double stopLoss, double takeProfit)
+{
+    double lotSize = AccountBalance() * riskPercentage / (stopLoss * MarketInfo(Symbol(), MODE_TICKVALUE));
+    
+    // Check if lot size is within acceptable limits
+    if (lotSize < 0.01) lotSize = 0.01;
+    if (lotSize > 100.0) lotSize = 100.0;
+    
+    trade.BuyStop(lotSize, entryPrice, stopLoss, takeProfit, 'Product Crush Strategy');
+}
+
+// Define trading logic function
+void TradeLogic()
+{
+    double cciValue = cci.iCCI(Symbol(), PERIOD_M15, 14, PRICE_TYPICAL, 0);
+    double maValue = ma.iMA(Symbol(), PERIOD_M15, 50, 0, MODE_EMA, PRICE_CLOSE, 0);
+    
+    // Check if CCI crosses above 0 and price is above moving average
+    if (cciValue > 0 && Close[1] < maValue && Close > maValue)
+    {
+        double entryPrice = NormalizeDouble(Ask, Digits);
+        double stopLoss = entryPrice - (entryPrice * stopLossPercentage / 100);
+        double takeProfit = entryPrice + (entryPrice * takeProfitPercentage / 100);
+        
+        // Check if spread is within acceptable limits
+        if (MarketInfo(Symbol(), MODE_SPREAD) <= maxSpread)
+        {
+            ExecuteTrade(entryPrice, stopLoss, takeProfit);
+        }
+    }
+}
+
+// Define OnInit function
+void OnInit()
+{
+    // Initialize technical indicators
+    cci.Create();
+    ma.Create();
+    
+    // Set indicator parameters
+    cci.SetAppliedPrice(PRICE_TYPICAL);
+    cci.SetPeriod(14);
+    ma.SetPeriod(50);
+    ma.SetShift(0);
+    ma.SetMaMethod(MODE_EMA);
+    ma.SetAppliedPrice(PRICE_CLOSE);
+    
+    // Subscribe to necessary symbols and timeframes
+    SymbolSubscribe(Symbol());
+    PeriodSubscribe(PERIOD_M15);
+}
+
+// Define OnTick function
+void OnTick()
+{
+    // Execute trading logic
+    TradeLogic();
+}
+
+// Define OnDeinit function
+void OnDeinit(const int reason)
+{
+    // Cleanup resources
+    cci.Destroy();
+    ma.Destroy();
+}
+
+// Define main program function
+void OnStart()
+{
+    // Execute trading logic
+    TradeLogic();
+}
